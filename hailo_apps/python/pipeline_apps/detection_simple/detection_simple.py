@@ -1,6 +1,8 @@
 # region imports
 # Standard library imports
 import os
+import csv
+import time
 os.environ["GST_PLUGIN_FEATURE_RANK"] = "vaapidecodebin:NONE"
 
 # Third-party imports
@@ -22,12 +24,18 @@ hailo_logger = get_logger(__name__)
 
 # endregion imports
 
-
 # User-defined class to be used in the callback function: Inheritance from the app_callback_class
 class user_app_callback_class(app_callback_class):
-    def __init__(self):
+    def __init__(self, csv_path="fps_log.csv"):
         super().__init__()
+        self.last_time = time.time()
+        self.csv_file = open(csv_path, "w", newline="")
+        self.csv_writer = csv.writer(self.csv_file)
+        self.csv_writer.writerow(["frame", "fps"])  # header
 
+    def __del__(self):
+        if hasattr(self, 'csv_file') and self.csv_file:
+            self.csv_file.close()
 
 # User-defined callback function: This is the callback function that will be called when data is available from the pipeline
 def app_callback(element, buffer, user_data):
@@ -35,9 +43,19 @@ def app_callback(element, buffer, user_data):
     frame_idx = user_data.get_count()
     hailo_logger.debug("Processing frame %s", frame_idx)
     string_to_print = f"Frame count: {user_data.get_count()}\n"
+
+    # FPS calculation and CSV logging
+    now = time.time()
+    fps = 1.0 / (now - user_data.last_time)
+    user_data.last_time = now
+    user_data.csv_writer.writerow([frame_idx, f"{fps:.2f}"])
+    user_data.csv_file.flush()
+    string_to_print += f"FPS: {fps:.2f}\n"
+
     if buffer is None:
         hailo_logger.warning("Received None buffer at frame=%s", user_data.get_count())
         return
+
     for detection in hailo.get_roi_from_buffer(buffer).get_objects_typed(
         hailo.HAILO_DETECTION
     ):
@@ -50,8 +68,17 @@ def app_callback(element, buffer, user_data):
 
 def main():
     hailo_logger.info("Starting Detection Simple App.")
-    user_data = user_app_callback_class()
-    app = GStreamerDetectionSimpleApp(app_callback, user_data)
+    from hailo_apps.python.core.common.core import get_pipeline_parser
+    parser = get_pipeline_parser()
+    parser.add_argument(
+        "--csv-path",
+        default="fps_log.csv",
+        help="Path to save FPS log CSV file (default: fps_log.csv)"
+    )
+
+    args, _ = parser.parse_known_args()
+    user_data = user_app_callback_class(csv_path=args.csv_path)  # ← pass csv_path here
+    app = GStreamerDetectionSimpleApp(app_callback, user_data, parser=parser)  # ← pass parser here
     app.run()
 
 
