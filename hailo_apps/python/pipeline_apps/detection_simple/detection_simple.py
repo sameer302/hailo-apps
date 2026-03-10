@@ -3,6 +3,7 @@
 import os
 import csv
 import time
+from datetime import datetime
 os.environ["GST_PLUGIN_FEATURE_RANK"] = "vaapidecodebin:NONE"
 
 # Third-party imports
@@ -29,9 +30,10 @@ class user_app_callback_class(app_callback_class):
     def __init__(self, csv_path="fps_log.csv"):
         super().__init__()
         self.last_time = time.time()
+        self.fps_buffer = []  # ← store fps for 30 frames
         self.csv_file = open(csv_path, "w", newline="")
         self.csv_writer = csv.writer(self.csv_file)
-        self.csv_writer.writerow(["frame", "fps"])  # header
+        self.csv_writer.writerow(["timestamp","frame_count", "fps"])  # header
 
     def __del__(self):
         if hasattr(self, 'csv_file') and self.csv_file:
@@ -42,15 +44,24 @@ def app_callback(element, buffer, user_data):
     # Note: Frame counting is handled automatically by the framework wrapper
     frame_idx = user_data.get_count()
     hailo_logger.debug("Processing frame %s", frame_idx)
-    string_to_print = f"Frame count: {user_data.get_count()}\n"
+    # string_to_print = f"Frame count: {user_data.get_count()}\n"
 
     # FPS calculation and CSV logging
     now = time.time()
     fps = 1.0 / (now - user_data.last_time)
     user_data.last_time = now
-    user_data.csv_writer.writerow([frame_idx, f"{fps:.2f}"])
-    user_data.csv_file.flush()
-    string_to_print += f"FPS: {fps:.2f}\n"
+    user_data.fps_buffer.append(fps)  # ← accumulate
+
+    # Log average every 30 frames
+    if frame_idx % 30 == 0 and len(user_data.fps_buffer) > 0:
+        avg_fps = sum(user_data.fps_buffer) / len(user_data.fps_buffer)
+        timestamp = datetime.now().isoformat()
+        user_data.csv_writer.writerow([timestamp, frame_idx, f"{avg_fps:.2f}"])
+        user_data.csv_file.flush()
+        user_data.fps_buffer = []  # ← reset buffer after logging
+        print(f"Frame count: {frame_idx} | Avg FPS (last 30): {avg_fps:.2f}")
+
+    string_to_print = f"Frame count: {frame_idx}\nFPS: {fps:.2f}\n"
 
     if buffer is None:
         hailo_logger.warning("Received None buffer at frame=%s", user_data.get_count())
