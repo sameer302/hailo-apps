@@ -27,7 +27,7 @@ class user_app_callback_class(app_callback_class):
 
         self.time_buffer = []
         self.latency_buffer = []
-        self.window_size = 30
+        self.window_size = 34
 
         self.csv_file = open(csv_path, "w", newline="")
         self.csv_writer = csv.writer(self.csv_file)
