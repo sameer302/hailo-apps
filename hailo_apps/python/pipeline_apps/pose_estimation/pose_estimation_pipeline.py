@@ -106,10 +106,15 @@ class GStreamerPoseEstimationApp(GStreamerApp):
         infer_pipeline_wrapper = INFERENCE_PIPELINE_WRAPPER(infer_pipeline)
         tracker_pipeline = TRACKER_PIPELINE(class_id=0)
         user_callback_pipeline = USER_CALLBACK_PIPELINE()
-        display_pipeline = DISPLAY_PIPELINE(
-            video_sink=self.video_sink, sync=self.sync, show_fps=self.show_fps
-        )
+        # Original code
+        # display_pipeline = DISPLAY_PIPELINE(
+        #     video_sink=self.video_sink, sync=self.sync, show_fps=self.show_fps
+        # )
 
+        # Modified code
+        display_pipeline = "fakesink sync=true"
+
+        # Original code
         pipeline_string = (
             f"{source_pipeline} ! "
             f"{infer_pipeline_wrapper} ! "
@@ -117,6 +122,15 @@ class GStreamerPoseEstimationApp(GStreamerApp):
             f"{user_callback_pipeline} ! "
             f"{display_pipeline}"
         )
+
+        # Modified code
+        # pipeline_string = (
+        #     f"{source_pipeline} ! "
+        #     f"{infer_pipeline_wrapper} ! "
+        #     f"{tracker_pipeline} ! "
+        #     f"{user_callback_pipeline}"
+        # )
+
         hailo_logger.debug("Pipeline string: %s", pipeline_string)
         return pipeline_string
 
